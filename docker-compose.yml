@@ -1,0 +1,65 @@
+services:
+  backend.api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://*:4000
+      - ASPNETCORE_HTTP_PORTS=4000
+      - ASPNETCORE_HTTPS_PORTS=4001
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=123
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/web.pfx
+    container_name: backend.api
+    image: backend.api
+    build:
+      context: .
+      dockerfile: Backend/Dockerfile
+    ports:
+      - "4000:4000"
+      - "4001:4001"
+    volumes:
+      - ~/certs/https:/https:ro
+    depends_on:
+      database.server:
+        condition: service_healthy
+
+  database.server:
+    image: "mcr.microsoft.com/mssql/server"
+    container_name: database.server
+    user: root
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=1StrongPwd!!
+      - MSSQL_PID=Developer
+    # volumes:
+    #   - ./sqlserver/data:/var/opt/mssql/data
+    #   - ./sqlserver/log:/var/opt/mssql/log
+    volumes:
+      - mssqldata:/var/opt/mssql/data
+      - mssqllog:/var/opt/mssql/log
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 1StrongPwd!! -C -Q 'SELECT 1' || exit 1",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  clientapp.web:
+    build:
+      context: clientapp
+      dockerfile: Dockerfile
+    image: clientapp.web
+    container_name: clientapp.web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend.api
+
+volumes:
+  mssqldata:
+  mssqllog:
